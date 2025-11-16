@@ -1,4 +1,4 @@
-# Запуск проекта через `dokcer`
+# Запуск проекта через `docker`
 
 1.
 ```bash 
@@ -30,7 +30,7 @@ make e2e
 ``` bash
 make lint
 ```
-## Структура сервиса -> [tree](docs/tree)
+## Структура сервиса -> [tree](docs/tree.md)
 
 
 #
