@@ -1,0 +1,119 @@
+package user
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+
+	"railgorail/avito/internal/lib/sl"
+	"railgorail/avito/internal/repo"
+	"railgorail/avito/internal/transport/http/dto"
+
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
+)
+
+type userService interface {
+	GetReview(ctx context.Context, userID string) (*dto.GetReviewResponse, error)
+	SetIsActive(ctx context.Context, userID string, isActive bool) (*dto.UserSchema, error)
+}
+
+type UserHandler struct {
+	log     *slog.Logger
+	service userService
+}
+
+func NewUserHandler(log *slog.Logger, s userService) *UserHandler {
+	return &UserHandler{
+		log:     log,
+		service: s,
+	}
+}
+
+type SetIsActiveRequest struct {
+	UserID   string `json:"user_id"   validate:"required"`
+	IsActive bool   `json:"is_active"`
+}
+
+func (h *UserHandler) SetIsActive(w http.ResponseWriter, r *http.Request) {
+	const op = "handlers.user.SetIsActive"
+	log := h.log.With(
+		slog.String("op", op),
+		slog.String("request_id", middleware.GetReqID(r.Context())),
+	)
+
+	ctx := r.Context()
+
+	var input SetIsActiveRequest
+
+	if err := render.DecodeJSON(r.Body, &input); err != nil {
+		log.Error("failed to decode request body", sl.Err(err))
+
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, dto.Error(dto.ErrBadRequest, "bad request"))
+		return
+	}
+
+	if err := validator.New().Struct(input); err != nil {
+		validateError := err.(validator.ValidationErrors)
+
+		log.Error("invalid request", sl.Err(err))
+
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, dto.ValidationError(validateError))
+		return
+	}
+
+	resp, err := h.service.SetIsActive(ctx, input.UserID, input.IsActive)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			log.Info("user not found", sl.Err(err))
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, dto.Error(dto.ErrCodeNotFound, err.Error()))
+			return
+		}
+		log.Error("error while changing user", sl.Err(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, dto.InternalError())
+		return
+	}
+
+	log.Info("user changed successfully")
+	render.JSON(w, r, dto.UserResponse{User: *resp})
+}
+
+func (h *UserHandler) GetReview(w http.ResponseWriter, r *http.Request) {
+	const op = "handlers.user.GetReview"
+	log := h.log.With(
+		slog.String("op", op),
+		slog.String("request_id", middleware.GetReqID(r.Context())),
+	)
+
+	ctx := r.Context()
+
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, dto.Error(dto.ErrBadRequest, "user_id is required"))
+		return
+	}
+
+	resp, err := h.service.GetReview(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			log.Info("prs not found", sl.Err(err))
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, dto.Error(dto.ErrCodeNotFound, err.Error()))
+			return
+		}
+		log.Error("error while retrieving prs", sl.Err(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, dto.InternalError())
+		return
+	}
+
+	log.Info("retrieved prs successfully")
+	render.JSON(w, r, resp)
+}

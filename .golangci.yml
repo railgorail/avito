@@ -1,0 +1,30 @@
+version: "2"
+
+run:
+  timeout: 3m
+  tests: true
+  skip-files:
+    - "./tests/e2e/.*_test.go"
+    - ".*_mock.go"
+  skip-dirs:
+    - "vendor"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 5
+
+output:
+  format: colored-line-number
+  sort-results: true

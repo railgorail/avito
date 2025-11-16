@@ -1,0 +1,44 @@
+services:
+  e2e-tests:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile.e2e
+    depends_on:
+      test-app:
+        condition: service_started
+    networks:
+      - test-network
+  test-app:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+    environment:
+      - DATABASE_URL=postgres://t:t@test-db:5432/t?sslmode=disable
+    ports:
+      - "8080:8080"
+    restart: on-failure
+    depends_on:
+      test-db:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  test-db:
+    image: postgres:17
+    restart: always
+    environment:
+      - POSTGRES_DB=t
+      - POSTGRES_USER=t
+      - POSTGRES_PASSWORD=t
+    # without mounting for simplicity in internship task
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
