@@ -10,7 +10,7 @@ make start
 ```
 3.
 ```bash
-http://localhost:8080/healthcheck
+http://localhost:8080/health
 ```
 
 
